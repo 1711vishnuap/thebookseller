@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>Shop admin</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@400;600;800&display=swap">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="wrap">
+  <h1>Shop admin</h1>
+  <p class="sub">Add or change books here, then download books.json and upload it to your website host to make the changes live.</p>
+  <section class="panel">
+    <div class="note">Your changes are not live until you tap <strong>Download books.json</strong> and replace the old file on your host.</div>
+    <div class="two">
+      <div><label for="sName">Shop name</label><input id="sName"></div>
+      <div><label for="sWa">WhatsApp number (with country code, e.g. 919876543210)</label><input id="sWa" inputmode="numeric"></div>
+    </div>
+    <label for="sTag">Tagline</label><input id="sTag">
+    <h3 id="formTitle" style="margin:22px 0 0">Add a book</h3>
+    <div class="two">
+      <div><label for="bTitle">Title</label><input id="bTitle"></div>
+      <div><label for="bAuthor">Author</label><input id="bAuthor"></div>
+      <div><label for="bPrice">Price (₹)</label><input id="bPrice" type="number" min="0" inputmode="decimal"></div>
+      <div><label for="bStock">Copies in stock</label><input id="bStock" type="number" min="0" inputmode="numeric"></div>
+    </div>
+    <label for="bDesc">Details</label><textarea id="bDesc" rows="3"></textarea>
+    <label for="bImg">Cover photo</label><input id="bImg" type="file" accept="image/*">
+    <div class="acts"><button id="saveBook">Add book</button><button class="ghost" id="cancelEdit" hidden>Cancel edit</button></div>
+    <h3 style="margin:24px 0 4px">Your books</h3>
+    <div id="adminList"></div>
+    <div class="acts"><button id="dl">Download books.json</button><span class="by" id="status" style="align-self:center"></span></div>
+    <label for="loadFile">Start from a books.json file instead</label><input id="loadFile" type="file" accept=".json,application/json">
+  </section>
+</div>
+<script>
+var DATA = {shop:{name:"My Shop",tagline:"",whatsapp:""},books:[]}, editId = null, pendingImg = null;
+var $ = function(id){return document.getElementById(id)};
+function esc(s){return String(s==null?"":s).replace(/[&<>"']/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]})}
+function rs(n){return "₹" + Number(n).toLocaleString("en-IN")}
+function find(id){return DATA.books.filter(function(b){return b.id===id})[0]}
+function changed(){$("status").textContent="Unsaved changes. Download books.json to keep them.";}
+function drawList(){
+  $("adminList").innerHTML = DATA.books.length ? DATA.books.map(function(b){
+    return '<div class="row"><span style="display:flex;gap:10px;align-items:center">'+(b.img?'<img class="thumb" src="'+esc(b.img)+'" alt="">':'<span class="thumb" aria-hidden="true"></span>')+'<span>'+esc(b.title)+'<br><span class="by">'+rs(b.price)+' · '+b.stock+' in stock</span></span></span><span class="acts" style="margin:0"><button class="ghost" data-edit="'+esc(b.id)+'">Edit</button><button class="danger" data-del="'+esc(b.id)+'">Delete</button></span></div>';
+  }).join("") : '<p class="empty">No books yet. Add your first book above.</p>';
+}
+function fillSettings(){$("sName").value=DATA.shop.name; $("sTag").value=DATA.shop.tagline; $("sWa").value=DATA.shop.whatsapp;}
+function clearForm(){editId=null; pendingImg=null; ["bTitle","bAuthor","bPrice","bStock","bDesc"].forEach(function(i){$(i).value=""}); $("bImg").value=""; $("formTitle").textContent="Add a book"; $("saveBook").textContent="Add book"; $("cancelEdit").hidden=true;}
+document.addEventListener("click", function(e){
+  var ed=e.target.getAttribute("data-edit"), del=e.target.getAttribute("data-del");
+  if(ed){var b=find(ed); editId=ed; pendingImg=null; $("bTitle").value=b.title; $("bAuthor").value=b.author; $("bPrice").value=b.price; $("bStock").value=b.stock; $("bDesc").value=b.desc; $("formTitle").textContent="Edit book"; $("saveBook").textContent="Update book"; $("cancelEdit").hidden=false; $("formTitle").scrollIntoView({behavior:"smooth"});}
+  if(del && confirm("Delete this book?")){DATA.books=DATA.books.filter(function(b){return b.id!==del}); changed(); drawList();}
+});
+$("cancelEdit").addEventListener("click", clearForm);
+$("bImg").addEventListener("change", function(){
+  var f=this.files[0]; if(!f) return; var r=new FileReader();
+  r.onload=function(){var im=new Image(); im.onload=function(){
+    var s=Math.min(1,360/Math.max(im.width,im.height)), c=document.createElement("canvas");
+    c.width=Math.round(im.width*s); c.height=Math.round(im.height*s);
+    c.getContext("2d").drawImage(im,0,0,c.width,c.height); pendingImg=c.toDataURL("image/jpeg",0.72);
+  }; im.src=r.result;}; r.readAsDataURL(f);
+});
+$("saveBook").addEventListener("click", function(){
+  var title=$("bTitle").value.trim(), price=parseFloat($("bPrice").value);
+  if(!title||isNaN(price)||price<0){alert("Enter a title and a valid price.");return;}
+  var rec={title:title,author:$("bAuthor").value.trim(),price:price,stock:Math.max(0,parseInt($("bStock").value,10)||0),desc:$("bDesc").value.trim()};
+  if(editId){var b=find(editId); Object.assign(b,rec); if(pendingImg) b.img=pendingImg;}
+  else{rec.id="b"+Date.now(); rec.img=pendingImg||""; DATA.books.push(rec);}
+  clearForm(); changed(); drawList();
+});
+["sName","sTag","sWa"].forEach(function(id){$(id).addEventListener("input",function(){DATA.shop.name=$("sName").value; DATA.shop.tagline=$("sTag").value; DATA.shop.whatsapp=$("sWa").value.replace(/\D/g,""); changed();});});
+$("dl").addEventListener("click", function(){
+  var blob=new Blob([JSON.stringify(DATA)],{type:"application/json"}), a=document.createElement("a");
+  a.href=URL.createObjectURL(blob); a.download="books.json"; document.body.appendChild(a); a.click(); a.remove();
+  $("status").textContent="Downloaded. Upload books.json to your host to go live.";
+});
+$("loadFile").addEventListener("change", function(){
+  var f=this.files[0]; if(!f) return; var r=new FileReader();
+  r.onload=function(){try{DATA=JSON.parse(r.result); fillSettings(); drawList(); $("status").textContent="Loaded "+f.name;}catch(e){alert("That file is not a valid books.json.");}};
+  r.readAsText(f);
+});
+fetch("books.json?v="+Date.now()).then(function(r){if(!r.ok)throw 0;return r.json()}).then(function(j){DATA=j;}).catch(function(){}).then(function(){fillSettings(); drawList();});
+</script>
+</body>
+</html>

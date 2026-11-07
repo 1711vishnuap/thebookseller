@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The Book Seller</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@400;600;800&display=swap">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="wrap">
+  <h1 id="shopName">Loading…</h1><p class="sub" id="tagline"></p>
+  <label for="q" class="sub" style="margin-bottom:6px">Search books</label>
+  <input id="q" placeholder="Title or author" style="margin-bottom:16px">
+  <div class="grid" id="grid"></div>
+  <section class="panel" aria-live="polite">
+    <h2>Your order</h2><div id="lines"></div>
+    <div class="total"><span>Total</span><span id="total">₹0</span></div>
+    <label for="cname">Your name</label><input id="cname" autocomplete="name">
+    <label for="cphone">Your phone number</label><input id="cphone" inputmode="tel" autocomplete="tel">
+    <label for="caddr">Delivery address</label><input id="caddr" autocomplete="street-address">
+    <div class="acts"><button id="orderBtn">Place order</button></div>
+    <div class="done" id="done">
+      <p><strong>Your order is ready. Total <span id="doneAmt"></span></strong></p>
+      <div class="note">No payment is needed now. Tap the button below to send your order to us on WhatsApp. We will contact you to confirm it and collect the amount.</div>
+      <a class="btn" id="waLink" href="#" target="_blank" rel="noopener">Send order on WhatsApp</a>
+    </div>
+  </section>
+</div>
+<script>
+var DATA = {shop:{name:"",tagline:"",whatsapp:""},books:[]}, cart = {};
+var $ = function(id){return document.getElementById(id)};
+function esc(s){return String(s==null?"":s).replace(/[&<>"']/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]})}
+function rs(n){return "₹" + Number(n).toLocaleString("en-IN")}
+function find(id){return DATA.books.filter(function(b){return b.id===id})[0]}
+function total(){var t=0;DATA.books.forEach(function(b){t+=(cart[b.id]||0)*b.price});return t}
+function drawShop(){
+  $("shopName").textContent = DATA.shop.name; $("tagline").textContent = DATA.shop.tagline; document.title = DATA.shop.name;
+  var q = $("q").value.trim().toLowerCase();
+  var list = DATA.books.filter(function(b){return !q || (b.title+" "+b.author).toLowerCase().indexOf(q)>-1});
+  $("grid").innerHTML = list.length ? list.map(function(b){
+    var pic = b.img ? '<img src="'+esc(b.img)+'" alt="Cover of '+esc(b.title)+'">' : '<span aria-hidden="true">📖</span>';
+    var out = b.stock<=0;
+    return '<div class="p"><div class="pic">'+pic+'</div><h3>'+esc(b.title)+'</h3><div class="by">'+esc(b.author)+'</div><p>'+esc(b.desc)+'</p><div class="price">'+rs(b.price)+'</div><div class="by">'+(out?'Out of stock':b.stock+' in stock')+'</div><button data-add="'+esc(b.id)+'"'+(out?' disabled':'')+'>Add to order</button></div>';
+  }).join("") : '<p class="empty">No books found.</p>';
+}
+function drawCart(){
+  var h = "";
+  DATA.books.forEach(function(b){
+    var n = cart[b.id]||0; if(!n) return;
+    h += '<div class="row"><span>'+esc(b.title)+'</span><span class="qty"><button class="ghost" data-dec="'+esc(b.id)+'" aria-label="Remove one">−</button>'+n+'<button class="ghost" data-add="'+esc(b.id)+'" aria-label="Add one">+</button></span><span>'+rs(n*b.price)+'</span></div>';
+  });
+  $("lines").innerHTML = h || '<p class="empty">Add a book to start your order.</p>';
+  $("total").textContent = rs(total()); $("done").classList.remove("on");
+}
+document.addEventListener("click", function(e){
+  var a = e.target.getAttribute("data-add"), d = e.target.getAttribute("data-dec");
+  if(a){var b=find(a); if(b && (cart[a]||0) < b.stock){cart[a]=(cart[a]||0)+1;} else if(b){alert("Only "+b.stock+" in stock.");} drawCart();}
+  if(d){cart[d]=Math.max(0,(cart[d]||0)-1); drawCart();}
+});
+$("q").addEventListener("input", drawShop);
+$("orderBtn").addEventListener("click", function(){
+  var t = total();
+  if(!t){alert("Add at least one book first.");return;}
+  var name=$("cname").value.trim(), phone=$("cphone").value.trim(), addr=$("caddr").value.trim();
+  if(!name||!phone||!addr){alert("Please fill in your name, phone number and address.");return;}
+  var ref = "ORD" + Date.now().toString().slice(-6);
+  var lines = DATA.books.filter(function(b){return cart[b.id]}).map(function(b){return cart[b.id]+" x "+b.title}).join(", ");
+  var msg = "Hi, I’d like to place order "+ref+".\nBooks: "+lines+"\nTotal: "+rs(t)+"\nName: "+name+"\nPhone: "+phone+"\nAddress: "+addr;
+  $("doneAmt").textContent = rs(t);
+  $("waLink").href = "https://wa.me/"+DATA.shop.whatsapp+"?text="+encodeURIComponent(msg);
+  $("done").classList.add("on"); $("done").scrollIntoView({behavior:"smooth",block:"start"});
+});
+fetch("books.json?v="+Date.now()).then(function(r){if(!r.ok)throw 0;return r.json()}).then(function(j){DATA=j; drawShop(); drawCart();})
+.catch(function(){$("shopName").textContent="Shop unavailable"; $("tagline").textContent="Could not load books.json. Upload it next to this page.";});
+</script>
+</body>
+</html>
